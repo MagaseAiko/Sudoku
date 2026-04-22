@@ -718,7 +718,7 @@ function showEnd(win){
   $('ov-icon').textContent=win?'✦':'☽';
   $('ov-title').textContent=win?'Completo!':'Fim de jogo';
   const t=fmt(Math.floor(seconds/60))+':'+fmt(seconds%60);
-  $('ov-sub').textContent=win?`Tempo: ${t}  ·  Erros: ${errors}`:'Você cometeu 3 erros. Tente novamente!';
+  $('ov-sub').textContent=win?`Tempo: ${t}  ·  Erros: ${errors}`:'Você foi brutalmente moggado pelo beta!';
   $('overlay').classList.add('show');
 }
 
