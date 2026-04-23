@@ -247,13 +247,14 @@
     display: flex;
     gap: 8px;
     margin-bottom: 14px;
-    flex-wrap: wrap;
   }
   .ctrl-btn {
+    flex: 1;
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 6px;
-    padding: 9px 14px;
+    padding: 10px 8px;
     border: 1px solid var(--border2);
     border-radius: var(--radius-sm);
     background: var(--surface);
@@ -263,7 +264,6 @@
     font-weight: 400;
     cursor: pointer;
     transition: all 0.15s;
-    flex-shrink: 0;
   }
   .ctrl-btn:hover { border-color: var(--border3); color: var(--text); background: var(--surface2); }
   .ctrl-btn.active {
@@ -510,6 +510,130 @@ function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random
 function fmt(n){return String(n).padStart(2,'0');}
 function toast(msg,dur=1800){const t=$('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),dur);}
 
+/* ── AUDIO ─────────────────────────── */
+const AC = (()=>{ try{ return new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ return null; } })();
+function resumeAC(){ if(AC && AC.state==='suspended') AC.resume(); }
+
+/* Shared reverb convolver built once */
+let _reverb = null;
+function getReverb(){
+  if(_reverb) return _reverb;
+  if(!AC) return null;
+  const len = AC.sampleRate * 1.2;
+  const buf = AC.createBuffer(2, len, AC.sampleRate);
+  for(let ch=0;ch<2;ch++){
+    const d = buf.getChannelData(ch);
+    for(let i=0;i<len;i++) d[i] = (Math.random()*2-1) * Math.pow(1 - i/len, 2.8);
+  }
+  _reverb = AC.createConvolver();
+  _reverb.buffer = buf;
+  const wet = AC.createGain(); wet.gain.value = 0.18;
+  _reverb.connect(wet); wet.connect(AC.destination);
+  return _reverb;
+}
+
+/* Soft bell / marimba voice: sine + slight triangle blend, LP filtered */
+function softNote(freq, gainVal=0.12, attackT=0.006, releaseT=0.55, delayMs=0){
+  if(!AC) return;
+  setTimeout(()=>{
+    resumeAC();
+    const now = AC.currentTime;
+    const osc  = AC.createOscillator();
+    const osc2 = AC.createOscillator();
+    const blend= AC.createGain();
+    const env  = AC.createGain();
+    const lp   = AC.createBiquadFilter();
+
+    osc.type  = 'sine';
+    osc2.type = 'triangle';
+    osc.frequency.value  = freq;
+    osc2.frequency.value = freq * 2.01; /* subtle shimmer harmonic */
+
+    lp.type = 'lowpass';
+    lp.frequency.value = 3200;
+    lp.Q.value = 0.5;
+
+    blend.gain.value = 0.08; /* blend tiny bit of triangle */
+
+    /* soft exponential decay envelope */
+    env.gain.setValueAtTime(0, now);
+    env.gain.linearRampToValueAtTime(gainVal, now + attackT);
+    env.gain.exponentialRampToValueAtTime(gainVal * 0.4, now + attackT + 0.06);
+    env.gain.exponentialRampToValueAtTime(0.0001, now + attackT + releaseT);
+
+    osc.connect(env);
+    osc2.connect(blend); blend.connect(env);
+    env.connect(lp);
+    lp.connect(AC.destination);
+    const rv = getReverb(); if(rv) lp.connect(rv);
+
+    osc.start(now);  osc.stop(now + attackT + releaseT + 0.05);
+    osc2.start(now); osc2.stop(now + attackT + releaseT + 0.05);
+  }, delayMs);
+}
+
+/* Soft noise burst for pencil — like a pencil tap */
+function softClick(gainVal=0.07){
+  if(!AC) return;
+  resumeAC();
+  const now = AC.currentTime;
+  const buf = AC.createBuffer(1, AC.sampleRate * 0.06, AC.sampleRate);
+  const d = buf.getChannelData(0);
+  for(let i=0;i<d.length;i++) d[i] = (Math.random()*2-1);
+  const src = AC.createBufferSource();
+  src.buffer = buf;
+  const bp = AC.createBiquadFilter();
+  bp.type = 'bandpass'; bp.frequency.value = 1800; bp.Q.value = 1.2;
+  const env = AC.createGain();
+  env.gain.setValueAtTime(gainVal, now);
+  env.gain.exponentialRampToValueAtTime(0.0001, now + 0.055);
+  src.connect(bp); bp.connect(env); env.connect(AC.destination);
+  src.start(now); src.stop(now + 0.07);
+}
+
+/* Gentle two-tone descend for error */
+function softError(){
+  if(!AC) return;
+  softNote(311, 0.10, 0.008, 0.38, 0);
+  softNote(233, 0.08, 0.008, 0.32, 200);
+}
+
+const SFX = {
+  place() {
+    /* bright marimba pop — C5 */
+    softNote(523, 0.11, 0.005, 0.5);
+  },
+  note() {
+    softClick(0.06);
+  },
+  error() {
+    softError();
+  },
+  undo() {
+    /* gentle descend: E4 → C4 */
+    softNote(370, 0.08, 0.006, 0.35, 0);
+    softNote(294, 0.07, 0.006, 0.30, 110);
+  },
+  hint() {
+    /* arpeggio: C5 E5 G5 — sparkly */
+    softNote(523, 0.09, 0.005, 0.55, 0);
+    softNote(659, 0.09, 0.005, 0.55, 80);
+    softNote(784, 0.10, 0.005, 0.60, 160);
+  },
+  win() {
+    /* cheerful pentatonic rise + final chord bloom */
+    const mel = [523, 587, 659, 784, 1047];
+    mel.forEach((f,i) => softNote(f, 0.10, 0.006, 0.7, i*110));
+    /* bloom chord */
+    [523, 659, 784, 1047].forEach((f,i) => softNote(f, 0.08, 0.012, 1.1, 700 + i*30));
+  },
+  lose() {
+    /* soft descending minor — not harsh */
+    const mel = [392, 370, 330, 294, 261];
+    mel.forEach((f,i) => softNote(f, 0.09, 0.008, 0.55, i*130));
+  }
+};
+
 /* ── GENERATOR ─────────────────────── */
 function generateFull(){
   const g=Array.from({length:9},()=>Array(9).fill(0));
@@ -681,6 +805,7 @@ function placeNum(r,c,n){
     history.push({type:'note',r,c,prev:new Set(notes[r][c])});
     if(notes[r][c].has(n)) notes[r][c].delete(n); else notes[r][c].add(n);
     selNum=null;
+    SFX.note();
   } else {
     if(board[r][c]===n){
       history.push({type:'place',r,c,prev:n});
@@ -692,9 +817,11 @@ function placeNum(r,c,n){
       if(n!==solution[r][c]){
         errors++;
         updateErrors();
+        SFX.error();
         if(errors>=3){gameOver=true;setTimeout(()=>showEnd(false),500);return;}
       } else {
         clearNotesAffected(r,c,n);
+        SFX.place();
       }
     }
   }
@@ -720,6 +847,7 @@ function showEnd(win){
   const t=fmt(Math.floor(seconds/60))+':'+fmt(seconds%60);
   $('ov-sub').textContent=win?`Tempo: ${t}  ·  Erros: ${errors}`:'Você foi brutalmente moggado pelo beta!';
   $('overlay').classList.add('show');
+  if(win) SFX.win(); else SFX.lose();
 }
 
 /* ── CONTROLS ──────────────────────── */
@@ -728,6 +856,7 @@ $('undoBtn').addEventListener('click',()=>{
   const h=history.pop();
   if(h.type==='place') board[h.r][h.c]=h.prev;
   else if(h.type==='note') notes[h.r][h.c]=new Set(h.prev);
+  SFX.undo();
   renderBoard(); renderNumpad();
 });
 
@@ -754,6 +883,7 @@ $('hintBtn').addEventListener('click',()=>{
   $('hintBadge').textContent=hintsLeft;
   clearNotesAffected(r,c,solution[r][c]);
   selected=[r,c];
+  SFX.hint();
   renderBoard(); renderNumpad();
   const cells=$('board').children;
   const idx=r*9+c;
@@ -822,6 +952,7 @@ document.addEventListener('keydown',e=>{
 
 /* ── BOOT ──────────────────────────── */
 startGame();
+document.addEventListener('click', resumeAC, { once: true });
 </script>
 </body>
 </html>
