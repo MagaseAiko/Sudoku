@@ -87,6 +87,7 @@
     align-items: flex-end;
     justify-content: space-between;
     margin-bottom: 20px;
+    position: relative;
   }
   .logo {
     display: flex;
@@ -134,6 +135,40 @@
     transition: background 0.2s, border-color 0.2s;
   }
   .err-dot.filled { background: var(--red); border-color: var(--red); }
+
+  /* ── HOME BUTTON ────────────────────── */
+  .header-center {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .home-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text2);
+    cursor: pointer;
+    transition: all 0.15s;
+    text-decoration: none;
+  }
+  .home-btn:hover {
+    border-color: var(--accent);
+    background: var(--accent-glow);
+    color: var(--accent);
+  }
+  .home-btn svg {
+    width: 16px;
+    height: 16px;
+    stroke-width: 2;
+  }
 
   /* ── DIFFICULTY ─────────────────────────── */
   .diff-row {
@@ -428,8 +463,16 @@
 <!-- HEADER -->
 <div class="header">
   <div class="logo">
-    <span class="logo-label">De Cria</span>
+    <span class="logo-label">Puzzle</span>
     <span class="logo-title">Sudoku</span>
+  </div>
+  <div class="header-center">
+    <a class="home-btn" href="https://magaseaiko.github.io/Home/" title="Ir para Home">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+        <polyline points="9 22 9 12 15 12 15 22"/>
+      </svg>
+    </a>
   </div>
   <div class="header-right">
     <div class="timer" id="timer">00:00</div>
@@ -446,7 +489,7 @@
   <button class="diff-btn active" data-d="easy">Fácil</button>
   <button class="diff-btn" data-d="medium">Médio</button>
   <button class="diff-btn" data-d="hard">Difícil</button>
-  <button class="diff-btn" data-d="pro">Nobru</button>
+  <button class="diff-btn" data-d="pro">Pro</button>
 </div>
 
 <!-- BOARD -->
@@ -490,7 +533,7 @@
     <div class="overlay-icon" id="ov-icon">🎉</div>
     <div class="overlay-title" id="ov-title">Parabéns!</div>
     <div class="overlay-divider"></div>
-    <div class="overlay-sub" id="ov-sub">Você é o Nobru-sama em!</div>
+    <div class="overlay-sub" id="ov-sub">Você completou o Sudoku!</div>
     <button class="overlay-btn" id="ov-btn">Novo jogo</button>
   </div>
 </div>
@@ -845,7 +888,7 @@ function showEnd(win){
   $('ov-icon').textContent=win?'✦':'☽';
   $('ov-title').textContent=win?'Completo!':'Fim de jogo';
   const t=fmt(Math.floor(seconds/60))+':'+fmt(seconds%60);
-  $('ov-sub').textContent=win?`Tempo: ${t}  ·  Erros: ${errors}`:'Você foi brutalmente moggado pelo beta!';
+  $('ov-sub').textContent=win?`Tempo: ${t}  ·  Erros: ${errors}`:'Você cometeu 3 erros. Tente novamente!';
   $('overlay').classList.add('show');
   if(win) SFX.win(); else SFX.lose();
 }
